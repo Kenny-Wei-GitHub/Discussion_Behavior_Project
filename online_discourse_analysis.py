@@ -68,6 +68,15 @@ def discussion_topic_post_time_gap(df):
     return df
 
 
+def discussion_post_count(df):
+    '''
+        Calculate the the number of dicussion posts for each student
+    '''
+
+    df = df.groupby(by=['term', 'mellon_id'])['discussion_post_id'].count().reset_index(name = 'discussion_post_cnt')
+    return df
+
+
 def calculate_features_avg(df, cols):
     '''
         Calculate all features average including features from direct calculations and NLP models
@@ -79,15 +88,6 @@ def calculate_features_avg(df, cols):
         rename_dic[cols[i]] = cols[i] + '_avg'
 
     df = df.groupby(by=['term'])[cols].mean().reset_index().rename(columns = rename_dic, errors = 'raise')
-    return df
-
-
-def discussion_post_count(df):
-    '''
-        Calculate the the number of dicussion posts for each student
-    '''
-
-    df = df.groupby(by=['term'])['discussion_post_id'].count().reset_index(name = 'discussion_post_cnt')
     return df
 
 
