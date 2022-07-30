@@ -16,8 +16,8 @@ def discussion_text_clean(df):
         Clean the discussion text
     '''
 
-    regex = r'(&nbsp)|(<[^>]*>)|(\\n)'
-    df['cleaned_discussion_post'] = df['discussion_post_content'].str.replace(regex, '')
+    re = r'(&nbsp)|(<[^>]*>)|(\\n)'
+    df['cleaned_discussion_post'] = df['discussion_post_content'].str.replace(re, '', regex=True)
     return df
 
 
@@ -29,8 +29,8 @@ def utc_to_pts(df):
     df['discussion_topic_posted_at'] = pd.to_datetime(df['discussion_topic_posted_at'], utc=True)
     df['discussion_post_created_at'] = pd.to_datetime(df['discussion_post_created_at'], utc=True)
     
-    df['discussion_topic_posted_at'].dt.tz_convert('US/Pacific')
-    df['discussion_post_created_at'].dt.tz_convert('US/Pacific')
+    df['discussion_topic_posted_at'] = df['discussion_topic_posted_at'].dt.tz_convert('US/Pacific')
+    df['discussion_post_created_at'] = df['discussion_post_created_at'].dt.tz_convert('US/Pacific')
 
     return df
 
@@ -67,10 +67,23 @@ def utc_to_pts(df):
 
 def discussion_topic_post_time_gap(df):
     '''
-        Calculate the time gap (by day) between the create time for the dicussion topics and the post of discussion
+        Calculate the time gap (by day) between the created time for the dicussion topics and that for the post of discussion
     '''
-
+    
+    # Pure time gap
     df['discussion_topic_post_time_gap'] = (df['discussion_post_created_at'] - df['discussion_topic_posted_at']) / np.timedelta64(1, 'D')
+    
+    # Ranks of time gap within a same discussion_topics
+    df['discussion_topic_post_time_gap'] = df.groupby(by=['term', 'canvas_course_id', 'discussion_topic_id'])['discussion_topic_post_time_gap'].rank()
+    
+    # Final time gap scores
+    cnt = df.groupby(by=['term', 'canvas_course_id', 'discussion_topic_id'])['discussion_post_id'].count().reset_index(name='post_cnt') # counts of numbers of discussion posts in each topics
+    
+    df = df.merge(cnt, how='left', on=['term', 'canvas_course_id', 'discussion_topic_id'])
+    
+    df['discussion_topic_post_time_gap'] = df['discussion_topic_post_time_gap'] / df['post_cnt']
+    
+    df = df.drop('post_cnt')
     return df
 
 
@@ -79,7 +92,8 @@ def discussion_post_count(df):
         Calculate the the number of dicussion posts for each student
     '''
 
-    df = df.groupby(by=['term', 'mellon_id'])['discussion_post_id'].count().reset_index(name = 'discussion_post_cnt')
+    df = df.groupby(by=['term', 'mellon_id', 'canvas_course_id'])['discussion_post_id'].count().reset_index()
+    df = df.groupby(by=['term'])['discussion_post_id'].mean().reset_index(name = 'discussion_post_cnt_avg')
     return df
 
 
@@ -93,7 +107,8 @@ def calculate_features_avg(df, cols):
     for i in range(len(cols)):
         rename_dic[cols[i]] = cols[i] + '_avg'
 
-    df = df.groupby(by=['term'])[cols].mean().reset_index().rename(columns = rename_dic, errors = 'raise')
+    df = df.groupby(by=['term', 'mellon_id', 'canvas_course_id'])[cols].mean().reset_index()
+    df = df.groupby(by='term')[cols].mean().reset_index().rename(columns = rename_dic, errors = 'raise')
     return df
 
 
