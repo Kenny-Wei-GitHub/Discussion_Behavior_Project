@@ -70,21 +70,30 @@ def discussion_topic_post_time_gap(df):
         Calculate the time gap (by day) between the created time for the dicussion topics and that for the post of discussion
     '''
     
-    # Pure time gap
     df['discussion_topic_post_time_gap'] = (df['discussion_post_created_at'] - df['discussion_topic_posted_at']) / np.timedelta64(1, 'D')
     
-    # Ranks of time gap within a same discussion_topics
-    df['discussion_topic_post_time_gap'] = df.groupby(by=['term', 'canvas_course_id', 'discussion_topic_id'])['discussion_topic_post_time_gap'].rank()
+    return df
+
+
+def standardized_score(df, cols):
+    '''
+        Standardize the features
+    '''
     
-    # Final time gap scores
+    # Ranks of variables within the same discussion topics
+    df[cols] = df.groupby(by=['term', 'canvas_course_id', 'discussion_topic_id'])[cols].rank()
+    
+    # Final feature scores
     cnt = df.groupby(by=['term', 'canvas_course_id', 'discussion_topic_id'])['discussion_post_id'].count().reset_index(name='post_cnt') # counts of numbers of discussion posts in each topics
     
     df = df.merge(cnt, how='left', on=['term', 'canvas_course_id', 'discussion_topic_id'])
     
-    df['discussion_topic_post_time_gap'] = df['discussion_topic_post_time_gap'] / df['post_cnt']
+    df[cols] = df[cols].div(df['post_cnt'], axis=0)
     
-    df = df.drop('post_cnt')
+    df = df.drop('post_cnt', axis=1)
+    
     return df
+    
 
 
 def discussion_post_count(df):
