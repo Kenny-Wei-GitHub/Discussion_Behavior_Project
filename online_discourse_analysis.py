@@ -81,7 +81,7 @@ def standardized_score(df, cols):
     '''
     
     # Ranks of variables within the same discussion topics
-    df[cols] = df.groupby(by=['term', 'canvas_course_id', 'discussion_topic_id'])[cols].rank()
+    df[cols] = df.groupby(by=['term', 'canvas_course_id', 'discussion_topic_id'])[cols].rank(method='min')
     
     # Final feature scores
     cnt = df.groupby(by=['term', 'canvas_course_id', 'discussion_topic_id'])['discussion_post_id'].count().reset_index(name='post_cnt') # counts of numbers of discussion posts in each topics
@@ -119,6 +119,12 @@ def calculate_features_avg(df, cols):
     df = df.groupby(by=['term', 'mellon_id', 'canvas_course_id'])[cols].mean().reset_index()
     df = df.groupby(by='term')[cols].mean().reset_index().rename(columns = rename_dic, errors = 'raise')
     return df
+
+
+def t_test_output(term, df1, df2, col, alter='two-sided'):
+    temp1 = df1.loc[df1['term'] == term]
+    temp2 = df2.loc[df2['term'] == term]
+    return ttest_ind(temp1[col], temp2[col], alternative=alter)
 
 
 def discussion_reply_rate(df):
