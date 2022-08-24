@@ -1,10 +1,14 @@
 import pandas as pd
 import numpy as np
-from nltk.tokenize import RegexpTokenizer
-from stop_words import get_stop_words
-from nltk.stem.porter import PorterStemmer
-from gensim import corpora, models
-import gensim
+import re, nltk, gensim
+import spacy
+from sklearn.decomposition import LatentDirichletAllocation, TruncatedSVD
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
+from sklearn.model_selection import GridSearchCV
+from pprint import pprint
+from scipy.stats import ttest_ind
+from IPython.display import Audio, display
+
 
 '''
     This python file contains functions that will be used in the project
@@ -17,7 +21,7 @@ def discussion_text_clean(df):
     '''
 
     re = r'(&nbsp)|(<[^>]*>)|(\\n)'
-    df['cleaned_discussion_post'] = df['discussion_post_content'].str.replace(re, '', regex=True)
+    df['cleaned_discussion_post'] = df.loc[:, 'discussion_post_content'].str.replace(re, '', regex=True)
     return df
 
 
@@ -121,10 +125,37 @@ def calculate_features_avg(df, cols):
     return df
 
 
-def t_test_output(term, df1, df2, col, alter='two-sided'):
+def term_code(row):
+    if row['term'] == 'Fall 2020':
+        return 1
+    elif row['term'] == 'Winter 2021':
+        return 2
+    elif row['term'] == 'Spring 2021':
+        return 3
+    elif row['term'] == 'Fall 2021':
+        return 4
+    elif row['term'] == 'Winter 2022':
+        return 5
+    elif row['term'] == 'Spring 2022':
+        return 6
+
+
+def t_test_group(term, df1, df2, col, alter='two-sided'):
+    '''
+        Conduct t-test on two student groups in one specific term/quarter for some variables
+    '''
+    
     temp1 = df1.loc[df1['term'] == term]
     temp2 = df2.loc[df2['term'] == term]
     return ttest_ind(temp1[col], temp2[col], alternative=alter)
+
+
+def t_test_term(df1, df2, col, alter='two-sided'):
+    '''
+        Conduct t-test on two terms/quarters for some variables
+    '''
+    
+    return ttest_ind(df1[col], df2[col], alternative=alter)
 
 
 def discussion_reply_rate(df):
@@ -137,49 +168,65 @@ def discussion_reply_rate(df):
     return df
 
 
+def sent_to_words(sentences):
+    '''
+        Tokenization
+    '''
+    for s in sentences:
+        yield gensim.utils.simple_preprocess(s, deacc=True)
+
+        
+def lemmatization(texts, allowed_postags=['NOUN', 'ADJ', 'VERB', 'ADV']):
+    '''
+        Lemmatization
+    '''
+    
+    nlp = spacy.load('en_core_web_sm', disable=['parser', 'ner'])
+    texts_out = []
+    for s in texts:
+        doc = nlp(" ".join(s))
+        texts_out.append(" ".join([token.lemma_ if token.lemma_ not in ['-PRON-'] else '' for token in doc if token.pos_ in allowed_postags]))
+        
+    return texts_out
+    
+
+def print_topic(model, vectorizer):
+    terms = vectorizer.get_feature_names()
+    
+    for i, c in enumerate(model.components_):
+        zipped = zip(terms, c)
+        top_term_key = sorted(zipped, key=lambda x: x[1], reverse=True)[:6]
+        top_term_lst = list(dict(top_term_key).keys())
+        print('Topic '+str(i)+':', top_term_lst)
+
+    
 def lda_model(df, num_topics, passes):
     '''
         Generate the LDA models given the dataframe with cleaned discussion post
     '''
     
-    tokenizer = RegexpTokenizer(r"[\w']+")
-
-    # create English stop words list
-    en_stop = get_stop_words('en')
-
-    # Create p_stemmer of class PorterStemmer
-    p_stemmer = PorterStemmer()
-    
     # compile the cleaned_discussion_post column into a list
     doc_set = [str(x) for x in list(df['cleaned_discussion_post'].values)]
     #print(len(doc_set))
     
-    # list for tokenized documents in loop
-    texts = []
+    # list for tokenized documents
+    data_words = list(sent_to_words(doc_set))
     
-    # loop through document list
-    for content in doc_set:
+    # list for lemmatized documents
+    nlp = spacy.load('en_core_web_sm', disable=['parser', 'ner'])
+    data_lemmatized = lemmatization(data_words, allowed_postags=['NOUN', 'ADJ', 'VERB', 'ADV'])
     
-        # clean and tokenize document string
-        raw = content.lower()
-        tokens = tokens = tokenizer.tokenize(raw)
-
-        # remove stop words from tokens
-        stopped_tokens = [w for w in tokens if w not in en_stop]
-
-        # stem tokens
-        stemmed_tokens = [p_stemmer.stem(i) for i in stopped_tokens]
-
-        # add tokens to list
-        texts.append(stemmed_tokens)
-    
-    # turn our tokenized documents into a id <-> term dictionary
-    dictionary = corpora.Dictionary(texts)
-
-    # convert tokenized documents into a document-term matrix
-    corpus = [dictionary.doc2bow(text) for text in texts]
+    # Create the Document-Word matrix
+    vectorizer = CountVectorizer(analyzer='word', min_df=10, stop_words='english', lowercase=True, token_pattern='[a-zA-Z0-9]{3,}')
+    data_vectorized = vectorizer.fit_transform(data_lemmatized)
     
     # generate the LDA model
-    ldamodel = gensim.models.ldamodel.LdaModel(corpus, num_topics=num_topics, id2word = dictionary, passes=passes)
+    ldamodel = LatentDirichletAllocation(n_topics=10, max_iter=10, learning_method='online', random_state=100, batch_size=128, evaluate_every = -1, n_jobs = -1).fit(data_vectorized)
+    
+    print_topic(ldamodel, vectorizer)
     
     return ldamodel
+    
+
+def allDone():
+  display(Audio(url='https://sound.peal.io/ps/audios/000/000/537/original/woo_vu_luvub_dub_dub.wav', autoplay=True))
