@@ -192,15 +192,19 @@ def lemmatization(texts, allowed_postags=['NOUN', 'ADJ', 'VERB', 'ADV']):
 
 def print_topic(model, vectorizer):
     terms = vectorizer.get_feature_names()
+    lst = []
     
     for i, c in enumerate(model.components_):
         zipped = zip(terms, c)
         top_term_key = sorted(zipped, key=lambda x: x[1], reverse=True)[:6]
         top_term_lst = list(dict(top_term_key).keys())
         print('Topic '+str(i)+':', top_term_lst)
+        lst.append(top_term_lst)
+    
+    return lst
 
     
-def lda_model(df, num_topics, passes):
+def lda_model(df):
     '''
         Generate the LDA models given the dataframe with cleaned discussion post
     '''
@@ -213,19 +217,23 @@ def lda_model(df, num_topics, passes):
     data_words = list(sent_to_words(doc_set))
     
     # list for lemmatized documents
-    nlp = spacy.load('en_core_web_sm', disable=['parser', 'ner'])
     data_lemmatized = lemmatization(data_words, allowed_postags=['NOUN', 'ADJ', 'VERB', 'ADV'])
     
     # Create the Document-Word matrix
-    vectorizer = CountVectorizer(analyzer='word', min_df=10, stop_words='english', lowercase=True, token_pattern='[a-zA-Z0-9]{3,}')
+    vectorizer = CountVectorizer(analyzer='word', min_df=10, stop_words='english', lowercase=True, token_pattern='[a-zA-Z0-9]{3,}', max_features=10000)
     data_vectorized = vectorizer.fit_transform(data_lemmatized)
     
     # generate the LDA model
-    ldamodel = LatentDirichletAllocation(n_topics=10, max_iter=10, learning_method='online', random_state=100, batch_size=128, evaluate_every = -1, n_jobs = -1).fit(data_vectorized)
+    #if ldamodel is None:
+    #    ldamodel = LatentDirichletAllocation(n_components=15, learning_decay=0.9, max_iter=10, learning_method='online', random_state=100, batch_size=128, evaluate_every = -1, n_jobs = -1, total_samples=1168344).partial_fit(data_vectorized)
+    #else:
+    #    ldamodel = ldamodel.partial_fit(data_vectorized)
     
-    print_topic(ldamodel, vectorizer)
+    ldamodel = LatentDirichletAllocation(n_components=15, learning_decay=0.9, learning_method='online', random_state=100, batch_size=128, evaluate_every = -1).fit(data_vectorized)
     
-    return ldamodel
+    topic_lst = print_topic(ldamodel, vectorizer)
+    
+    return ldamodel, data_vectorized, topic_lst
     
 
 def allDone():
