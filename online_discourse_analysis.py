@@ -105,8 +105,7 @@ def discussion_post_count(df):
         Calculate the the number of dicussion posts for each student
     '''
 
-    df = df.groupby(by=['term', 'mellon_id', 'canvas_course_id'])['discussion_post_id'].count().reset_index()
-    df = df.groupby(by=['term'])['discussion_post_id'].mean().reset_index(name = 'discussion_post_cnt_avg')
+    df = df.groupby(by=['term', 'mellon_id', 'canvas_course_id'])['discussion_post_id'].count().reset_index(name = 'discussion_post_cnt_avg')
     return df
 
 
@@ -120,8 +119,7 @@ def calculate_features_avg(df, cols):
     for i in range(len(cols)):
         rename_dic[cols[i]] = cols[i] + '_avg'
 
-    df = df.groupby(by=['term', 'mellon_id', 'canvas_course_id'])[cols].mean().reset_index()
-    df = df.groupby(by='term')[cols].mean().reset_index().rename(columns = rename_dic, errors = 'raise')
+    df = df.groupby(by=['term', 'mellon_id', 'canvas_course_id'])[cols].mean().reset_index().rename(columns = rename_dic, errors = 'raise')
     return df
 
 
@@ -203,12 +201,12 @@ def print_topic(model, vectorizer):
     
     return lst
 
-    
-def lda_model(df):
+
+def lda_preprocess(df):
     '''
-        Generate the LDA models given the dataframe with cleaned discussion post
+        Preprocess the discussion posts
     '''
-    
+
     # compile the cleaned_discussion_post column into a list
     doc_set = [str(x) for x in list(df['cleaned_discussion_post'].values)]
     #print(len(doc_set))
@@ -223,17 +221,25 @@ def lda_model(df):
     vectorizer = CountVectorizer(analyzer='word', min_df=10, stop_words='english', lowercase=True, token_pattern='[a-zA-Z0-9]{3,}', max_features=10000)
     data_vectorized = vectorizer.fit_transform(data_lemmatized)
     
+    return vectorizer, data_vectorized
+    
+    
+def lda_model(vectorizer, data_vectorized):
+    '''
+        Generate the LDA models given preprocessd discussion posts
+    '''
+    
     # generate the LDA model
     #if ldamodel is None:
     #    ldamodel = LatentDirichletAllocation(n_components=15, learning_decay=0.9, max_iter=10, learning_method='online', random_state=100, batch_size=128, evaluate_every = -1, n_jobs = -1, total_samples=1168344).partial_fit(data_vectorized)
     #else:
     #    ldamodel = ldamodel.partial_fit(data_vectorized)
     
-    ldamodel = LatentDirichletAllocation(n_components=15, learning_decay=0.9, learning_method='online', random_state=100, batch_size=128, evaluate_every = -1).fit(data_vectorized)
+    ldamodel = LatentDirichletAllocation(n_components=14, learning_decay=0.9, learning_method='online', random_state=100, batch_size=128, evaluate_every = -1).fit(data_vectorized)
     
     topic_lst = print_topic(ldamodel, vectorizer)
     
-    return ldamodel, data_vectorized, topic_lst
+    return ldamodel, topic_lst
     
 
 def allDone():
